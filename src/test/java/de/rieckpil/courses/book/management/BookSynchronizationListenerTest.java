@@ -1,83 +1,79 @@
 package de.rieckpil.courses.book.management;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.*;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class BookSynchronizationListenerTest {
-
-  private final static String VALID_ISBN = "1234567891234";
+public class BookSynchronizationListenerTest {
+  private final String ISBN = "1234567891234";
   @Mock
-  private BookRepository bookRepository;
-
+  private BookRepository mockBookRepository;
   @Mock
-  private OpenLibraryApiClient openLibraryApiClient;
-
+  private OpenLibraryApiClient mockOpenLibraryApiClient;
   @InjectMocks
   private BookSynchronizationListener cut;
-
   @Captor
   private ArgumentCaptor<Book> bookArgumentCaptor;
 
   @Test
+  @DisplayName("Should reject book when Isbn is malformed")
   public void shouldRejectBookWhenIsbnIsMalformed() {
     BookSynchronization bookSynchronization = new BookSynchronization("42");
-
     cut.consumeBookUpdates(bookSynchronization);
-
-    verifyNoInteractions(openLibraryApiClient, bookRepository);
+    verifyNoInteractions(mockOpenLibraryApiClient, mockBookRepository);
   }
 
   @Test
-  public void shouldNotOverrideWhenBookAlreadyExists() {
-    BookSynchronization bookSynchronization = new BookSynchronization(VALID_ISBN);
-    when(bookRepository.findByIsbn(VALID_ISBN)).thenReturn(new Book());
-
+  @DisplayName("Should not override when book already exists")
+  public void shouldNotOverrideWhenAlreadyExists() {
+    BookSynchronization bookSynchronization = new BookSynchronization(ISBN);
+    when(mockBookRepository.findByIsbn(ISBN)).thenReturn(new Book());
     cut.consumeBookUpdates(bookSynchronization);
-
-    verifyNoInteractions(openLibraryApiClient);
-    verify(bookRepository, times(0)).save(ArgumentMatchers.any());
+    verifyNoInteractions(mockOpenLibraryApiClient);
+    verify(mockBookRepository, times(0)).save(any());
   }
 
   @Test
-  public void shouldThrowExceptionWhenProcessingFails() {
-    BookSynchronization bookSynchronization = new BookSynchronization(VALID_ISBN);
-    when(bookRepository.findByIsbn(VALID_ISBN)).thenReturn(null);
-    when(openLibraryApiClient.fetchMetadataForBook(VALID_ISBN)).thenThrow(new RuntimeException("Network timeout"));
-
+  @DisplayName("Should throw exception when processing failed")
+  public void shouldThrowExceptionWhenProcessingFailed() {
+    BookSynchronization bookSynchronization = new BookSynchronization(ISBN);
+    when(mockBookRepository.findByIsbn(ISBN)).thenReturn(null);
+    when(mockOpenLibraryApiClient.fetchMetadataForBook(ISBN)).thenThrow(new RuntimeException("Network timeout"));
     assertThrows(RuntimeException.class, () -> cut.consumeBookUpdates(bookSynchronization));
   }
 
   @Test
+  @DisplayName("Should store book when new and correct isbn")
   public void shouldStoreBookWhenNewAndCorrectIsbn() {
+    BookSynchronization bookSynchronization = new BookSynchronization(ISBN);
+    when(mockBookRepository.findByIsbn(ISBN)).thenReturn(null);
+    Book rb = new Book();
+    rb.setTitle("Java book");
+    rb.setIsbn(ISBN);
 
-    BookSynchronization bookSynchronization = new BookSynchronization(VALID_ISBN);
-    when(bookRepository.findByIsbn(VALID_ISBN)).thenReturn(null);
-
-    Book requestedBook = new Book();
-    requestedBook.setTitle("Java book");
-    requestedBook.setIsbn(VALID_ISBN);
-
-    when(openLibraryApiClient.fetchMetadataForBook(VALID_ISBN)).thenReturn(requestedBook);
-    when(bookRepository.save(ArgumentMatchers.any())).then(invocation -> {
-      Book methodArgument = invocation.getArgument(0);
-      methodArgument.setId(1L);
+    when(mockOpenLibraryApiClient.fetchMetadataForBook(ISBN)).thenReturn(rb);
+    when(mockBookRepository.save(any())).then(invocationOnMock -> {
+      Book methodArgument = invocationOnMock.getArgument(0);
+      methodArgument.setId(1l);
       return methodArgument;
     });
 
     cut.consumeBookUpdates(bookSynchronization);
-
-    verify(bookRepository).save(bookArgumentCaptor.capture());
+    verify(mockBookRepository).save(bookArgumentCaptor.capture());
 
     Book methodArgument = bookArgumentCaptor.getValue();
-    assertEquals("Java book", methodArgument.getTitle());
-    assertEquals(VALID_ISBN, methodArgument.getIsbn());
+    assertThat(methodArgument.getTitle()).isEqualTo("Java book");
+    assertThat(methodArgument.getIsbn()).isEqualTo(ISBN);
   }
-
 }

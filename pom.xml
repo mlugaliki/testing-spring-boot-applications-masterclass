@@ -233,12 +233,12 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.0.0-M5</version>
         <configuration>
-          <!--<properties>
+          <properties>
             <configurationParameters>
               junit.jupiter.execution.parallel.enabled = true
               junit.jupiter.execution.parallel.mode.default = concurrent
             </configurationParameters>
-          </properties> -->
+          </properties>
         </configuration>
       </plugin>
       <plugin>
